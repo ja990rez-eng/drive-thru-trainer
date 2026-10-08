@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Drive-Thru Trainer</title>
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#f1eef6; --panel:#ffffff; --ink:#1d1527; --muted:#62566f; --line:#d9cfe6;
+  --brand:#702082; --on-brand:#ffffff; --hot:#d71f78;
+  --ok:#11763f; --ok-bg:#dff3e7; --bad:#b82a39; --bad-bg:#fbe3e6;
+  --bubble:#fff0a3; --bubble-ink:#2b2300;
+  --cs:62%; --cl:93%; --cbs:42%; --cbl:72%; --as:58%; --al:34%;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px);height:100%}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#120e18; --panel:#1d1626; --ink:#f2ecf8; --muted:#a99db8; --line:#35293f;
+    --brand:#a24bbd; --hot:#ff5fa3;
+    --ok:#4fd08a; --ok-bg:#12331f; --bad:#ff7482; --bad-bg:#3d171c;
+    --bubble:#4b4009; --bubble-ink:#fff0b0;
+    --cs:34%; --cl:20%; --cbs:34%; --cbl:36%; --as:44%; --al:40%;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#120e18; --panel:#1d1626; --ink:#f2ecf8; --muted:#a99db8; --line:#35293f;
+  --brand:#a24bbd; --hot:#ff5fa3;
+  --ok:#4fd08a; --ok-bg:#12331f; --bad:#ff7482; --bad-bg:#3d171c;
+  --bubble:#4b4009; --bubble-ink:#fff0b0;
+  --cs:34%; --cl:20%; --cbs:34%; --cbl:36%; --as:44%; --al:40%;
+}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;min-height:100%}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px solid var(--hot);outline-offset:2px}
+.wrap{max-width:1100px;margin:0 auto;padding:12px 12px 0}
+
+/* top */
+.top{display:flex;flex-direction:column;gap:10px}
+.title{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+h1{margin:0;font-size:24px;font-weight:850;letter-spacing:-.01em}
+.sub{margin:0;color:var(--muted);font-size:14px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 4px;text-align:center}
+.stat b{display:block;font-size:22px;line-height:1.1}
+.stat span{font-size:12px;color:var(--muted)}
+.seg{display:flex;border:2px solid var(--brand);border-radius:999px;overflow:hidden;background:var(--panel)}
+.seg button{flex:1;border:0;background:transparent;padding:8px 6px;font-weight:700}
+.seg button[aria-pressed="true"]{background:var(--brand);color:var(--on-brand)}
+.seg-note{font-size:13px;color:var(--muted);margin:4px 2px 0}
+
+/* layout */
+.layout{display:grid;gap:12px;margin-top:12px;grid-template-columns:minmax(0,1fr)}
+#call{position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+@media (min-width:900px){
+  .layout{grid-template-columns:minmax(0,370px) minmax(0,1fr);grid-template-areas:"call register" "result register" "order register";align-items:start}
+  #call{grid-area:call}
+  #result{grid-area:result}
+  #orderPanel{grid-area:order}
+  #register{grid-area:register}
+}
+
+/* customer call */
+.call{background:var(--panel);border:2px solid var(--brand);border-radius:14px;padding:10px;display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start;box-shadow:0 6px 0 -2px color-mix(in srgb,var(--brand) 30%,transparent)}
+.who{font-size:30px;line-height:1;padding-top:4px}
+.bubble{position:relative;background:var(--bubble);color:var(--bubble-ink);border-radius:4px 16px 16px 16px;padding:10px 12px;font-size:17px;font-weight:600;min-height:48px}
+.bubble em{font-weight:500}
+.call-actions{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.pill{border:2px solid var(--line);background:var(--bg);border-radius:999px;padding:4px 12px;font-size:14px;font-weight:650}
+.pill:disabled{opacity:.45;cursor:default}
+.listen{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--muted)}
+.hint{grid-column:1 / -1;margin:0;font-size:14px;font-weight:650;color:var(--hot)}
+
+/* result */
+.result{border-radius:14px;padding:12px;border:2px solid var(--line);background:var(--panel)}
+.result.ok{background:var(--ok-bg);border-color:var(--ok)}
+.result.bad{background:var(--bad-bg);border-color:var(--bad)}
+.res-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px}
+.res-head strong{font-size:20px}
+.result.ok .res-head strong{color:var(--ok)}
+.result.bad .res-head strong{color:var(--bad)}
+.rows{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.rows li{display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:start;font-size:15px}
+.rows .mark{font-weight:800}
+.rows .good .mark{color:var(--ok)}
+.rows .miss .mark{color:var(--bad)}
+.rows small{display:block;color:var(--muted)}
+.wanted{margin:10px 0 0;padding-top:8px;border-top:1px dashed var(--line);font-size:14px}
+.wanted b{display:block;margin-bottom:2px}
+
+/* order */
+.order{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px}
+.order-head{display:flex;justify-content:space-between;align-items:baseline}
+.order h2,.register h2{margin:0;font-size:18px}
+.count{color:var(--muted);font-size:14px}
+.empty{margin:8px 0 2px;color:var(--muted);font-size:15px}
+.empty.nudge{color:var(--bad);font-weight:700}
+.lines{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
+.line{border-left:6px solid hsl(var(--h) 55% 50%);background:var(--bg);border-radius:8px;padding:6px 8px}
+.line-main{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ln{flex:1 1 140px;font-weight:700;font-size:15px}
+.step{display:flex;align-items:center;gap:6px}
+.step button,.rm{width:34px;height:34px;border-radius:8px;border:1px solid var(--line);background:var(--panel);font-size:18px;line-height:1;font-weight:700}
+.step b{min-width:18px;text-align:center}
+.modbtn{border:1px solid var(--line);background:var(--panel);border-radius:8px;height:34px;padding:0 10px;font-size:14px;font-weight:650}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{border:2px solid var(--line);background:var(--panel);border-radius:999px;padding:4px 10px;font-size:14px}
+.chip.on{background:var(--hot);border-color:var(--hot);color:#fff;font-weight:700}
+.locked .line button,.locked .grid .item{pointer-events:none;opacity:.55}
+
+/* register */
+.register{display:grid;gap:8px;align-content:start}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:thin}
+.tab{flex:0 0 auto;position:relative;border-radius:10px;border:2px solid hsl(var(--h) var(--cbs) var(--cbl));background:hsl(var(--h) var(--cs) var(--cl));padding:8px 14px;font-weight:750;font-size:15px}
+.tab.on{background:hsl(var(--h) var(--as) var(--al));border-color:hsl(var(--h) var(--as) var(--al));color:#fff}
+.tab.hinted::after{content:"";position:absolute;top:-4px;right:-4px;width:12px;height:12px;border-radius:50%;background:var(--hot);border:2px solid var(--bg)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:8px}
+.item{position:relative;min-height:66px;text-align:left;border-radius:10px;border:2px solid hsl(var(--h) var(--cbs) var(--cbl));background:hsl(var(--h) var(--cs) var(--cl));padding:8px 30px 8px 10px;font-weight:700;font-size:14.5px;line-height:1.25;transition:transform .06s}
+.item:active{transform:scale(.97)}
+.item .q{position:absolute;top:6px;right:6px;min-width:22px;height:22px;border-radius:11px;background:var(--hot);color:#fff;font-size:13px;display:grid;place-items:center;padding:0 5px}
+
+
+/* photos */
+.item{display:flex;align-items:center;gap:8px;padding:6px 30px 6px 6px;min-height:72px}
+.item img{width:58px;height:58px;border-radius:8px;object-fit:cover;flex:0 0 auto;background:#fff}
+.item .nm{min-width:0}
+.line-main>img{width:36px;height:36px;border-radius:6px;object-fit:cover;flex:0 0 auto;background:#fff}
+.grid{grid-template-columns:repeat(auto-fill,minmax(172px,1fr))}
+/* dock */
+.dock{position:sticky;bottom:0;z-index:6;margin:14px -12px 0;padding:10px 12px calc(10px + env(safe-area-inset-bottom,0px));background:var(--bg);border-top:1px solid var(--line);display:flex;gap:8px}
+.dock .clear{flex:0 0 auto;border:2px solid var(--line);background:var(--panel);border-radius:12px;padding:0 16px;font-weight:700}
+.dock .go{flex:1;border:0;border-radius:12px;background:var(--brand);color:var(--on-brand);font-size:19px;font-weight:850;padding:14px 10px}
+.dock .go.next{background:var(--hot)}
+.dock button:disabled{opacity:.5;cursor:default}
+.foot{margin:10px 0 18px;text-align:center}
+.foot button{border:0;background:none;color:var(--muted);text-decoration:underline;font-size:13px}
+@media (prefers-reduced-motion:reduce){.item{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <header class="top">
+    <div class="title">
+      <h1>Drive-Thru Trainer</h1>
+      <p class="sub">Hear the customer, ring it up, hit Drive-Thru. Photos need an internet connection.</p>
+    </div>
+    <div class="stats" aria-label="Your stats">
+      <div class="stat"><b id="sOrders">0</b><span>Orders</span></div>
+      <div class="stat"><b id="sPerfect">0</b><span>Perfect</span></div>
+      <div class="stat"><b id="sStreak">0</b><span>Streak</span></div>
+      <div class="stat"><b id="sBest">0</b><span>Best streak</span></div>
+    </div>
+    <div>
+      <div class="seg" role="group" aria-label="Difficulty">
+        <button type="button" data-level="easy" aria-pressed="true">Easy</button>
+        <button type="button" data-level="medium" aria-pressed="false">Medium</button>
+        <button type="button" data-level="hard" aria-pressed="false">Hard</button>
+      </div>
+      <p class="seg-note" id="levelNote"></p>
+    </div>
+  </header>
+
+  <main class="layout" id="layout">
+    <section class="call" id="call" aria-label="Customer">
+      <div class="who" aria-hidden="true">🚗</div>
+      <div class="bubble" id="bubble" aria-live="polite"></div>
+      <div class="call-actions">
+        <button type="button" class="pill" id="btnPlay">Play audio</button>
+        <label class="listen" id="lblListen"><input type="checkbox" id="chkListen"> Listen only</label>
+        <button type="button" class="pill" id="btnHint">Hint</button>
+        <button type="button" class="pill" id="btnSkip">Skip customer</button>
+      </div>
+      <p class="hint" id="hintLine" hidden></p>
+    </section>
+
+    <section class="result" id="result" hidden aria-live="polite"></section>
+
+    <section class="order" id="orderPanel" aria-label="Your order">
+      <div class="order-head"><h2>Your order</h2><span class="count" id="orderCount"></span></div>
+      <p class="empty" id="empty">Tap items on the register to add them.</p>
+      <ul class="lines" id="lines"></ul>
+    </section>
+
+    <section class="register" id="register" aria-label="Register">
+      <h2>Register</h2>
+      <div class="tabs" id="tabs" role="tablist"></div>
+      <div class="grid" id="grid"></div>
+    </section>
+  </main>
+
+  <div class="dock">
+    <button type="button" class="clear" id="btnClear">Clear</button>
+    <button type="button" class="go" id="btnGo">Drive-Thru</button>
+  </div>
+  <div class="foot"><button type="button" id="btnReset">Reset my stats</button></div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ---------- Menu (read from tacobell.com/food, Crenshaw Blvd location) ---------- */
+var CATS=[
+ {name:'Luxe Value',h:275,items:['Beefy Potato Loaded Griller','Mini Taco Salad','Chips and Nacho Supreme Dip','Avocado Ranch Chicken Stacker','Cheesy Roll Up','Spicy Potato Soft Taco','Cheesy Bean and Rice Burrito','3 Cheese Chicken Flatbread Melt','Cheesy Double Beef Burrito']},
+ {name:'Cantina Chicken',h:355,items:['Cantina Chicken Rolled Quesadilla','Cantina Chicken Burrito','Cantina Chicken Soft Taco','Cantina Chicken Crispy Taco','Cantina Chicken Bowl','Cantina Chicken Rolled Quesadilla Combo','Cantina Chicken Crispy Taco Combo','Cantina Chicken Burrito Combo','Avocado Verde Salsa Sauce Packet']},
+ {name:'Tacos',h:30,items:['Cantina Chicken Crispy Taco','Cantina Chicken Soft Taco','Soft Taco','Soft Taco Supreme','Spicy Potato Soft Taco','Crunchy Taco','Crunchy Taco Supreme','Nacho Cheese Doritos Locos Tacos','Nacho Cheese Doritos Locos Tacos Supreme','Chalupa Supreme','Black Bean Chalupa Supreme','Cheesy Gordita Crunch','Doritos Cheesy Gordita Crunch - Nacho Cheese']},
+ {name:'Burritos',h:145,items:['Beefy Potato Loaded Griller','Cantina Chicken Burrito','Cheesy Double Beef Burrito','Grilled Cheese Burrito','Black Bean Grilled Cheese Burrito','Bean Burrito','Beefy 5-Layer Burrito','Burrito Supreme','Cheesy Bean and Rice Burrito']},
+ {name:'Specialties',h:320,items:['Slow-Roasted Chicken Gordita Crunch Duos 2pk','Creamy Chipotle Crispy Chicken Crunchwrap Slider','Diablo Ranch Steak Nacho Fries','5 Piece Crispy Chicken Nuggets','10 Piece Crispy Chicken Nuggets','Mini Taco Salad','Avocado Ranch Chicken Stacker','Large Nacho Fries','Nacho Fries','3 Cheese Chicken Flatbread Melt','Mexican Pizza','Veggie Mexican Pizza','Crunchwrap Supreme','Black Bean Crunchwrap Supreme','Cheesy Roll Up']},
+ {name:'Quesadillas',h:75,items:['Cantina Chicken Rolled Quesadilla','Chicken Quesadilla','Steak Quesadilla','Cheese Quesadilla']},
+ {name:'Boxes & Combos',h:245,items:["Duo's Usual",'Discovery Luxe Box','10 Piece Crispy Chicken Nuggets Combo','Build Your Own Luxe Cravings Box','Cantina Chicken Crispy Taco Combo','Cantina Chicken Burrito Combo','Cantina Chicken Rolled Quesadilla Combo','Mexican Pizza Combo','Chicken Quesadilla Combo','2 Chicken Chalupas Supreme Combo','Crunchwrap Supreme Combo','3 Crunchy Tacos Combo','3 Crunchy Tacos Supreme Combo','3 Doritos Locos Tacos Combo','3 Doritos Locos Tacos Supreme Combo','Supreme Luxe Box','Classic Luxe Box']},
+ {name:'Snacks & Sweets',h:175,items:['Large Nacho Fries','Nacho Fries','Chips and Guacamole','Chips and Nacho Cheese Sauce','Black Beans','Black Beans and Rice','Pintos N Cheese','Cinnamon Twists','Cinnabon Delights 2 Pack','Avocado Verde Salsa Sauce Packet','Mild Sauce Packet','Hot Sauce Packet','Fire Sauce Packet','Diablo Sauce Packet','Jalapeño Peppers','Nacho Cheese Sauce','Reduced-Fat Sour Cream','Creamy Jalapeño Sauce','Guacamole','Chipotle Sauce','Avocado Ranch Sauce','Spicy Ranch','Red Sauce','Mexican Pizza Sauce','Napkin','Fork','Straw']},
+ {name:'Drinks',h:205,items:['Pretty Pink Baja Blast','Pineapple Citrus Energy Freeze','Pineapple Citrus Energy','Strawberry Tropics Energy','Pineapple Freeze','Mtn Dew Baja Blast Dirty Soda Freeze','Mtn Dew Baja Blast Dirty Soda','Dirty Soda with Baja Blast Zero Sugar','Mtn Dew Baja Midnight Dirty Soda','Pepsi Dirty Soda','Tropicana Original Dirty Lemonade','Mountain Dew Baja Midnight','Strawberry Passionfruit Agua Refresca','Mango Peach Agua Refresca','Dragonfruit Berry Agua Refresca','Wild Strawberry Freeze','Mtn Dew Baja Blast Freeze','Pepsi','Diet Pepsi','Pepsi Zero Sugar','Cherry Pepsi','Mtn Dew','Mtn Dew Zero','Mtn Dew Baja Blast','Mtn Dew Baja Blast Zero Sugar','Mug Root Beer','Starry','Brisk Mango Fiesta','Lipton Unsweetened Iced Tea','Premium Hot Coffee','Hot Cinnabon Delights Coffee','Regular Iced Coffee','Iced Cinnabon Delights Coffee','Drinks Party Pack']}
+];
+var MODS=['No Lettuce','No Tomatoes','No Cheese','No Sour Cream','No Onions','Extra Cheese','Fresco Style'];
+
+/* ---------- Item photos (hosted by tacobell.com, same order as the items above) ---------- */
+var IMGS={
+ 'Luxe Value':'25501_beef_potato_loaded_griller|25502_mini_taco_salad|25509_chips_and_nacho_supreme_dip_new|25500_chipotle_ranch_chicken_stacker|22152_cheesy_roll_up|22259_spicy_potato_soft_taco|22283_cheesy_bean_and_rice_burrito|23499_new_3_cheese_chicken_flatbread_melt|23226_new_cheesy_double_beef_burrito',
+ 'Cantina Chicken':'29158_new_cantina_chicken_rolled_quesadilla|23472_new_cantina_chicken_burrito|23470_new_cantina_chicken_soft_taco|23471_new_cantina_chicken_crispy_taco|23473_new_cantina_chicken_bowl|29159_cantina_chicken_rolled_quesadilla_combo|23478_cantina_chicken_crispy_taco_combo_new|23479_cantina_chicken_burrito_combo_new|23476_new_avocado_verde_salsa_sauce_packet',
+ 'Tacos':'23471_new_cantina_chicken_crispy_taco|23470_new_cantina_chicken_soft_taco|22110_soft_taco|22111_soft_taco_supreme|22259_spicy_potato_soft_taco|22100_crunchy_taco|22101_crunchy_taco_supreme|22172_nacho_cheese_doritos_locos_tacos|22173_nacho_cheese_doritos_locos_tacos_supreme|22850_chalupa_supreme|23153_black_bean_chalupa|22813_cheesy_gordita_crunch|24067_doritos_cheesy_gordita_crunch',
+ 'Burritos':'25501_beef_potato_loaded_griller|23472_new_cantina_chicken_burrito|23226_new_cheesy_double_beef_burrito|22963_beef_grilled_cheese_burrito|22963_beef_grilled_cheese_burrito|22200_bean_burrito|22167_beefy_5_layer_burrito|22201_burrito_supreme|22283_cheesy_bean_and_rice_burrito',
+ 'Specialties':'23828_slow_-_roasted_chicken_gordita_crunch_sliders|23793_creamy_chipotle_crispy_chicken_crunchwrap_slider_new|28039_diablo_ranch_steak_nacho_fries|29404_5_piece_crispy_chicken_nuggets_new|29405_10_piece_crispy_chicken_nuggets|25502_mini_taco_salad|25500_chipotle_ranch_chicken_stacker|28183_nacho_fries_large|28095_nacho_fries|23499_new_3_cheese_chicken_flatbread_melt|22303_mexican_pizza|23326_veggie_mexican_pizza|22362_crunchwrap_supreme|26051_vegetarian_crunchwrap|22152_cheesy_roll_up',
+ 'Quesadillas':'29158_new_cantina_chicken_rolled_quesadilla|22321_quesadilla|22322_steak_quesadilla|22320_cheese_quesadilla',
+ 'Boxes & Combos':'28941_mass_bundle|29093_discovery_luxe_box_new|29409_10_piece_crispy_chicken_nuggets_combo|23551_build_your_own_luxe_box_new|23478_cantina_chicken_crispy_taco_combo_new|23479_cantina_chicken_burrito_combo_new|29159_cantina_chicken_rolled_quesadilla_combo|22604_mexican_pizza_combo|22607_chicken_quesadilla_combo|23760_2_chicken_chalupas_supreme_combo|22609_crunchwrap_supreme_combo|22608_crunchy_tacos_combo|22603_crunchy_tacos_supreme_combo|22637_3_doritos_locos_tacos_combo_new|22701_3_doritos_locos_tacos_supreme_combo_alt|27276_supreme_luxe_box|27272_classic_luxe_box',
+ 'Snacks & Sweets':'28183_nacho_fries_large|28095_nacho_fries|23318_new_chips_and_guacamole|22500_chips_and_nacho_cheese_sauce|22394_black_beans|22393_black_beans_and_rice|22510_pintos_n_cheese|22525_cinnamon_twists|30046_cinnabon_delights_2_pack|23476_new_avocado_verde_salsa_sauce_packet|22763_mild_sauce_packet|22760_hot_sauce_packet|22759_fire_sauce_packet|22765_diablo_sauce_packet|2115_jalapeno_peppers|2253_nacho_cheese_sauce|2053_reduced_fat_sour_cream|2240_creamy_jalapeno_sauce|2063_guacamole|2323_chipotle_sauce|2383_avocado_ranch_sauce|2519_spicy_ranch|2148_red_sauce|2370_mexican_pizza_sauce|550201_napkin|550202_fork|550200_straw',
+ 'Drinks':'2456_pretty_pink_baja_blast|3778_regular_pineapple_mango_energy_freeze|3777_pineapple_mango_energy_refresca|3776_strawberry_tropics_punch_energy_refresca|2426_pineapple_freeze|2077_mountain_dew_baja_blast_dirty_soda_freeze|3704_mountain_dew_baja_blast_dirty_soda|3707_dirty_soda_with_mountain_dew_baja_blast|3789_mountain_dew_baja_midnight_dirty_soda|3786_pepsi_dirty_soda|3792_tropicana_original_dirty_lemonade|3782_mtn_dew_baja_blast_midnight|3717_strawberry_passionfruit_agua_refresca|3719_mango_peach_agua_refresca|3718_dragonfruit_berry_agua_refresca|1634_wild_strawberry_freeze|1491_mtn_dew_baja_blast_freeze|1002_pepsi_new|1007_diet_pepsi_new|1107_pepsi_zero_sugar|1072_cherry_pepsi|1012_mtn_dew|1147_mtn_dew_zero|1027_mountain_dew_baja_blast|1110_mountain_dew_baja_blast_zero|1062_mug_root_beer|1153_starry|1219_brisk_mango_fiesta_new|1077_lipton_unsweetened_iced_tea_new|1527_premium_hot_coffee|1280_hot_cinnabon_delight_coffee|1534_iced_regular_coffee|1281_iced_cinnabon_delight_coffee|21210_drink_party_pack_750x340'
+};
+var imgOf={};
+CATS.forEach(function(c){var f=IMGS[c.name].split('|');c.items.forEach(function(n,i){if(f[i]&&!imgOf[n])imgOf[n]=f[i];});});
+function photo(n){
+  var f=imgOf[n];if(!f)return '';
+  var u='https://www.tacobell.com/images/'+f+(/_\d+x\d+$/.test(f)?'.jpg':'_269x269.jpg');
+  return '<img src="'+u+'" alt="" loading="lazy" onerror="this.remove()">';
+}
+
+var itemCats={}, catByName={};
+CATS.forEach(function(c){catByName[c.name]=c;c.items.forEach(function(n){(itemCats[n]=itemCats[n]||[]).push(c.name);});});
+var PREF=['Drinks','Tacos','Burritos','Specialties','Quesadillas','Snacks & Sweets','Boxes & Combos','Cantina Chicken','Luxe Value'];
+function primaryCat(n){for(var i=0;i<PREF.length;i++){if((itemCats[n]||[]).indexOf(PREF[i])>-1)return PREF[i];}return CATS[0].name;}
+function modsOK(n){return (itemCats[n]||[]).some(function(c){return c!=='Drinks'&&c!=='Snacks & Sweets';});}
+
+/* mods a real customer might plausibly ask for on an item (used only for generated orders) */
+function modsFor(n){
+  if(/Combo|Luxe|Box/.test(n))return [];
+  if(/Supreme/.test(n))return ['No Tomatoes','No Sour Cream','No Lettuce','Fresco Style'];
+  if(/^(Soft Taco|Crunchy Taco|Nacho Cheese Doritos Locos Tacos)$/.test(n))return ['No Lettuce','No Cheese'];
+  if(n==='Bean Burrito')return ['No Onions','No Cheese'];
+  if(/Mexican Pizza$/.test(n))return ['No Tomatoes'];
+  return [];
+}
+
+function uniq(a){return a.filter(function(x,i){return a.indexOf(x)===i;});}
+var POOL={
+  foods:uniq([].concat(catByName['Tacos'].items,catByName['Burritos'].items,catByName['Specialties'].items,catByName['Quesadillas'].items,catByName['Cantina Chicken'].items,catByName['Luxe Value'].items)).filter(function(n){return !/Packet/.test(n);}),
+  combos:catByName['Boxes & Combos'].items.filter(function(n){return /Combo$/.test(n);}),
+  drinks:catByName['Drinks'].items.filter(function(n){return n!=='Drinks Party Pack';}),
+  sides:['Large Nacho Fries','Nacho Fries','Chips and Guacamole','Chips and Nacho Cheese Sauce','Black Beans','Black Beans and Rice','Pintos N Cheese','Cinnamon Twists','Cinnabon Delights 2 Pack']
+};
+
+var LEVELS={
+  easy:{foods:[1,1],combo:0,drink:.5,side:0,q2:0,mods:0,change:0,note:'1 item, sometimes a drink. No tricks.'},
+  medium:{foods:[2,3],combo:.2,drink:.75,side:.3,q2:.2,mods:.35,change:0,note:'A few items, some doubles, a mod now and then.'},
+  hard:{foods:[3,4],combo:.25,drink:1,side:.6,q2:.4,mods:.8,change:.4,note:'Big orders, mods, and customers who change their mind.'}
+};
+
+/* ---------- helpers ---------- */
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function rnd(n){return Math.floor(Math.random()*n);}
+function randInt(a,b){return a+rnd(b-a+1);}
+function pick(a){return a[rnd(a.length)];}
+function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=rnd(i+1),t=a[i];a[i]=a[j];a[j]=t;}return a;}
+var NUM=['zero','one','two','three','four'];
+
+/* ---------- speaking the order ---------- */
+function sp(n){return n.replace(/\bMtn\b/g,'Mountain');}
+function art(n){return /^[aeiou]/i.test(n)?'an':'a';}
+function plural(s){if(/s$/i.test(s)||/ and /.test(s)||/ - /.test(s)||/2pk/.test(s))return s;if(/[^aeiou]y$/i.test(s))return s.slice(0,-1)+'ies';return s+'s';}
+var ORDER_OF=/(Beans|Fries|Twists|Nuggets|Duos 2pk|2 Pack|^Chips and )/;
+function qtyPhrase(name,qty){
+  var s=sp(name);
+  if(ORDER_OF.test(s))return qty===1?'an order of '+s:NUM[qty]+' orders of '+s;
+  return qty===1?art(s)+' '+s:NUM[qty]+' '+plural(s);
+}
+function say(line){
+  var t=qtyPhrase(line.name,line.qty);
+  if(line.mods.length)t+=', '+line.mods.map(function(m){return m.toLowerCase();}).join(' and ');
+  return t;
+}
+
+/* ---------- generate a customer ---------- */
+function genOrder(level){
+  var cfg=LEVELS[level],used={},lines=[];
+  function take(pool){var o=pool.filter(function(n){return !used[n];});if(!o.length)return null;var n=pick(o);used[n]=1;return n;}
+  function qty(){return Math.random()<cfg.q2?(Math.random()<.25?3:2):1;}
+  var nFoods=randInt(cfg.foods[0],cfg.foods[1]);
+  for(var i=0;i<nFoods;i++){
+    var n=take((Math.random()<cfg.combo)?POOL.combos:POOL.foods);
+    if(!n)continue;
+    var mods=[],allowed=modsFor(n);
+    if(allowed.length&&Math.random()<cfg.mods){mods=shuffle(allowed).slice(0,(allowed.length>1&&Math.random()<.4)?2:1);}
+    lines.push({name:n,qty:qty(),mods:mods,kind:'food'});
+  }
+  if(Math.random()<cfg.drink){
+    var nd=(level==='hard'&&Math.random()<.4)?2:1;
+    for(var d=0;d<nd;d++){var dn=take(POOL.drinks);if(dn)lines.push({name:dn,qty:qty(),mods:[],kind:'drink'});}
+  }
+  if(Math.random()<cfg.side){var sn=take(POOL.sides);if(sn)lines.push({name:sn,qty:1,mods:[],kind:'side'});}
+
+  /* spoken segments, foods first, then sides, then drinks */
+  var rank={food:0,side:1,drink:2};
+  var spoken=lines.slice().sort(function(a,b){return rank[a.kind]-rank[b.kind];});
+  var changed=null,before=null;
+  if(Math.random()<cfg.change){
+    var foodLines=spoken.filter(function(l){return l.kind==='food';});
+    if(foodLines.length){changed=pick(foodLines);before=take(POOL.foods);}
+  }
+  var segs=spoken.map(function(l){
+    if(l===changed&&before){return qtyPhrase(before,l.qty)+', actually no, make that '+say(l);}
+    return say(l);
+  });
+  var intro=pick(['Hi, can I get','Yeah, uh, can I get','Hey, let me get','Hi, I\'ll have','Can I do','Hello, I\'d like']);
+  var outro=pick(["That's it.","That's all, thanks.","Yeah, that's everything.","That should do it."]);
+  var body=segs.length===1?segs[0]:segs.slice(0,-1).join(', ')+', and '+segs[segs.length-1];
+  var cats=[];
+  CATS.forEach(function(c){if(lines.some(function(l){return primaryCat(l.name)===c.name;}))cats.push(c.name);});
+  return {lines:lines.map(function(l){return {name:l.name,qty:l.qty,mods:l.mods.slice()};}),text:intro+' '+body+'. '+outro,cats:cats};
+}
+
+/* ---------- state ---------- */
+var level='easy',catName='Tacos',cur=null,order=[],locked=false,hint=false,started=0,listenOnly=false;
+var canSpeak=('speechSynthesis' in window)&&('SpeechSynthesisUtterance' in window);
+var stats=loadStats();
+function loadStats(){
+  try{var s=JSON.parse(localStorage.getItem('drivethru-trainer-stats')||'null');if(s&&typeof s.orders==='number')return s;}catch(e){}
+  return {orders:0,perfect:0,streak:0,best:0};
+}
+function saveStats(){try{localStorage.setItem('drivethru-trainer-stats',JSON.stringify(stats));}catch(e){}}
+function speak(t){if(!canSpeak)return;try{window.speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(t);u.rate=1.02;window.speechSynthesis.speak(u);}catch(e){}}
+
+/* ---------- render ---------- */
+function renderStats(){
+  $('sOrders').textContent=stats.orders;$('sPerfect').textContent=stats.perfect;
+  $('sStreak').textContent=stats.streak;$('sBest').textContent=stats.best;
+}
+function renderLevel(){
+  var btns=document.querySelectorAll('.seg button');
+  for(var i=0;i<btns.length;i++){btns[i].setAttribute('aria-pressed',btns[i].getAttribute('data-level')===level?'true':'false');}
+  $('levelNote').textContent=LEVELS[level].note;
+}
+function renderCall(){
+  var b=$('bubble');
+  if(!cur){b.textContent='';return;}
+  if(listenOnly&&!locked){b.innerHTML='<em>Listen to the customer, then ring it up.</em>';}
+  else{b.textContent=cur.text;}
+  $('lblListen').hidden=!canSpeak;
+  $('btnPlay').hidden=!canSpeak;
+  $('btnHint').disabled=locked||hint;
+  var h=$('hintLine');h.hidden=!(hint&&!locked);
+  if(!h.hidden)h.textContent='Look in: '+cur.cats.join(', ');
+}
+function renderTabs(){
+  $('tabs').innerHTML=CATS.map(function(c){
+    var on=c.name===catName,hinted=hint&&!locked&&cur&&cur.cats.indexOf(c.name)>-1;
+    return '<button type="button" role="tab" class="tab'+(on?' on':'')+(hinted?' hinted':'')+'" style="--h:'+c.h+'" data-cat="'+esc(c.name)+'" aria-selected="'+on+'">'+esc(c.name)+'</button>';
+  }).join('');
+}
+function qtyOf(n){for(var i=0;i<order.length;i++){if(order[i].name===n)return order[i].qty;}return 0;}
+function renderGrid(){
+  var c=catByName[catName];
+  $('grid').innerHTML=c.items.map(function(n){
+    var q=qtyOf(n);
+    return '<button type="button" class="item" style="--h:'+c.h+'" data-name="'+esc(n)+'">'+photo(n)+'<span class="nm">'+esc(n)+'</span>'+(q?'<span class="q">'+q+'</span>':'')+'</button>';
+  }).join('');
+}
+function renderOrder(){
+  var total=order.reduce(function(s,l){return s+l.qty;},0);
+  $('orderCount').textContent=total?total+(total===1?' item':' items'):'';
+  $('empty').hidden=order.length>0;
+  $('lines').innerHTML=order.map(function(l,i){
+    var h=catByName[primaryCat(l.name)].h;
+    return '<li class="line" style="--h:'+h+'"><div class="line-main">'+photo(l.name)+'<span class="ln">'+esc(l.name)+'</span>'+
+      '<span class="step"><button type="button" data-act="dec" data-i="'+i+'" aria-label="Fewer '+esc(l.name)+'">−</button><b>'+l.qty+'</b><button type="button" data-act="inc" data-i="'+i+'" aria-label="More '+esc(l.name)+'">+</button></span>'+
+      (modsOK(l.name)?'<button type="button" class="modbtn" data-act="mods" data-i="'+i+'">'+(l.mods.length?'Mods ('+l.mods.length+')':'Mods')+'</button>':'')+
+      '<button type="button" class="rm" data-act="rm" data-i="'+i+'" aria-label="Remove '+esc(l.name)+'">✕</button></div>'+
+      (l.open?'<div class="chips">'+MODS.map(function(m){return '<button type="button" class="chip'+(l.mods.indexOf(m)>-1?' on':'')+'" data-act="mod" data-i="'+i+'" data-mod="'+esc(m)+'">'+esc(m)+'</button>';}).join('')+'</div>':'')+
+      '</li>';
+  }).join('');
+}
+function renderDock(){
+  var go=$('btnGo');
+  go.textContent=locked?'Next customer':'Drive-Thru';
+  go.className='go'+(locked?' next':'');
+  $('btnClear').disabled=locked||!order.length;
+  $('btnSkip').disabled=false;
+}
+function renderAll(){
+  renderStats();renderLevel();renderCall();renderTabs();renderGrid();renderOrder();renderDock();
+  $('layout').className='layout'+(locked?' locked':'');
+}
+
+/* ---------- checking ---------- */
+function fmtLine(l){return l.qty+'× '+l.name+(l.mods.length?' ('+l.mods.join(', ')+')':'');}
+function evaluate(){
+  var rows=[],mistakes=0;
+  var got={};order.forEach(function(l){got[l.name]=l;});
+  var want={};cur.lines.forEach(function(l){want[l.name]=l;});
+  cur.lines.forEach(function(e){
+    var g=got[e.name];
+    if(!g){rows.push({ok:false,text:'Missing '+fmtLine(e),tip:'Find it under '+primaryCat(e.name)+'.'});mistakes++;return;}
+    var issues=[];
+    if(g.qty!==e.qty)issues.push('customer wanted '+e.qty+', you rang '+g.qty);
+    e.mods.forEach(function(m){if(g.mods.indexOf(m)<0)issues.push('missing "'+m+'"');});
+    g.mods.forEach(function(m){if(e.mods.indexOf(m)<0)issues.push('"'+m+'" was not asked for');});
+    if(issues.length){rows.push({ok:false,text:e.name,tip:issues.join('; ')+'.'});mistakes++;}
+    else rows.push({ok:true,text:fmtLine(e)});
+  });
+  order.forEach(function(g){
+    if(!want[g.name]){rows.push({ok:false,text:'Extra: '+g.qty+'× '+g.name,tip:'The customer did not order this.'});mistakes++;}
+  });
+  return {rows:rows,mistakes:mistakes};
+}
+function renderResult(res,secs){
+  var r=$('result');
+  var perfect=res.mistakes===0;
+  r.className='result '+(perfect?'ok':'bad');
+  r.hidden=false;
+  var html='<div class="res-head"><strong>'+(perfect?'Perfect order':(res.mistakes===1?'1 mistake':res.mistakes+' mistakes'))+'</strong><span>'+secs+' sec</span></div><ul class="rows">'+
+    res.rows.map(function(x){return '<li class="'+(x.ok?'good':'miss')+'"><span class="mark">'+(x.ok?'✓':'✗')+'</span><span>'+esc(x.text)+(x.tip?'<small>'+esc(x.tip)+'</small>':'')+'</span></li>';}).join('')+'</ul>';
+  if(!perfect){
+    html+='<p class="wanted"><b>What the customer ordered</b>'+cur.lines.map(function(l){return esc(fmtLine(l));}).join('<br>')+'</p>';
+  }
+  r.innerHTML=html;
+}
+
+/* ---------- actions ---------- */
+function newCustomer(){
+  cur=genOrder(level);order=[];locked=false;hint=false;started=Date.now();
+  $('result').hidden=true;
+  renderAll();
+  window.scrollTo(0,0);
+  if(listenOnly)speak(cur.text);
+}
+function addItem(n){
+  if(locked)return;
+  for(var i=0;i<order.length;i++){if(order[i].name===n){if(order[i].qty<9)order[i].qty++;renderGrid();renderOrder();renderDock();return;}}
+  order.push({name:n,qty:1,mods:[],open:false});
+  renderGrid();renderOrder();renderDock();
+}
+function submit(){
+  var res=evaluate();
+  locked=true;
+  var secs=Math.round((Date.now()-started)/1000);
+  stats.orders++;
+  if(res.mistakes===0){stats.perfect++;stats.streak++;if(stats.streak>stats.best)stats.best=stats.streak;}
+  else stats.streak=0;
+  saveStats();
+  renderResult(res,secs);
+  renderAll();
+  try{$('result').scrollIntoView({behavior:'smooth',block:'nearest'});}catch(e){}
+}
+
+/* ---------- events ---------- */
+document.querySelector('.seg').addEventListener('click',function(e){
+  var b=e.target.closest('button[data-level]');if(!b)return;
+  level=b.getAttribute('data-level');newCustomer();
+});
+$('tabs').addEventListener('click',function(e){
+  var b=e.target.closest('.tab');if(!b)return;
+  catName=b.getAttribute('data-cat');renderTabs();renderGrid();
+});
+$('grid').addEventListener('click',function(e){
+  var b=e.target.closest('.item');if(!b)return;
+  addItem(b.getAttribute('data-name'));
+});
+$('lines').addEventListener('click',function(e){
+  var b=e.target.closest('[data-act]');if(!b||locked)return;
+  var i=+b.getAttribute('data-i'),act=b.getAttribute('data-act'),l=order[i];if(!l)return;
+  if(act==='inc'){if(l.qty<9)l.qty++;}
+  else if(act==='dec'){l.qty--;if(l.qty<1)order.splice(i,1);}
+  else if(act==='rm'){order.splice(i,1);}
+  else if(act==='mods'){l.open=!l.open;}
+  else if(act==='mod'){var m=b.getAttribute('data-mod'),k=l.mods.indexOf(m);if(k>-1)l.mods.splice(k,1);else l.mods.push(m);}
+  renderGrid();renderOrder();renderDock();
+});
+$('btnGo').addEventListener('click',function(){
+  if(locked){newCustomer();return;}
+  if(!order.length){
+    var em=$('empty');em.hidden=false;em.classList.add('nudge');em.textContent='Add at least one item before you hit Drive-Thru.';
+    setTimeout(function(){em.classList.remove('nudge');em.textContent='Tap items on the register to add them.';},1800);
+    return;
+  }
+  submit();
+});
+$('btnClear').addEventListener('click',function(){order=[];renderGrid();renderOrder();renderDock();});
+$('btnSkip').addEventListener('click',function(){newCustomer();});
+$('btnHint').addEventListener('click',function(){hint=true;renderCall();renderTabs();});
+$('btnPlay').addEventListener('click',function(){if(cur)speak(cur.text);});
+$('chkListen').addEventListener('change',function(e){listenOnly=e.target.checked;renderCall();if(listenOnly&&cur&&!locked)speak(cur.text);});
+$('btnReset').addEventListener('click',function(){stats={orders:0,perfect:0,streak:0,best:0};saveStats();renderStats();});
+
+newCustomer();
+})();
+</script>
+</body>
+</html>
